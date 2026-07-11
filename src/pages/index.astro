@@ -1,0 +1,1000 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { site, api, defaultPrompts } from '../config';
+---
+
+<Layout>
+	<div class="container">
+		<header class="header">
+			<h1>{site.title}</h1>
+			<p class="desc">{site.desc}</p>
+		</header>
+
+		<!-- Settings -->
+		<details class="settings">
+			<summary>
+				<i class="fa-solid fa-gear"></i>
+				API 设置
+			</summary>
+			<div class="settings-body">
+				<div class="field">
+					<label for="baseUrl">Base URL</label>
+					<input type="text" id="baseUrl" placeholder="https://api.openai.com/v1" spellcheck="false" />
+				</div>
+				<div class="field">
+					<label for="apiKey">API Key</label>
+					<input type="password" id="apiKey" placeholder="sk-..." />
+				</div>
+				<div class="field">
+					<label for="model">Model</label>
+					<input type="text" id="model" placeholder="gpt-4o-mini" spellcheck="false" />
+				</div>
+				<div class="settings-actions">
+					<button id="saveSettings" class="btn btn-outline">保存</button>
+					<span id="saveStatus" class="save-status"></span>
+				</div>
+			</div>
+		</details>
+
+		<!-- Default Prompts -->
+		<details class="settings">
+			<summary>
+				<i class="fa-solid fa-sliders"></i>
+				默认提示词
+			</summary>
+			<div class="settings-body">
+				<div class="field">
+					<label for="defaultPositive">默认正向提示词（生成时自动合并）</label>
+					<textarea id="defaultPositive" rows="3" spellcheck="false" placeholder="可留空"></textarea>
+				</div>
+				<div class="field">
+					<label for="defaultNegative">默认负向提示词（生成时自动合并）</label>
+					<textarea id="defaultNegative" rows="4" spellcheck="false" placeholder="可留空"></textarea>
+				</div>
+				<div class="settings-actions">
+					<button id="resetDefaults" class="btn btn-outline">恢复默认</button>
+					<span id="defaultsStatus" class="save-status"></span>
+				</div>
+			</div>
+		</details>
+
+		<!-- Input -->
+		<div class="card">
+			<div class="field">
+				<label for="userInput">描述你想要的画面</label>
+				<textarea
+					id="userInput"
+					rows="4"
+					placeholder="例如：赛博朋克风格的城市夜景，霓虹灯倒映在雨水中，一个穿着长风衣的女孩站在街头"
+					spellcheck="false"
+				></textarea>
+			</div>
+			<button id="generate" class="btn btn-primary">
+				<span class="btn-text"><i class="fa-solid fa-wand-magic-sparkles"></i> 生成提示词</span>
+				<span class="btn-loading" style="display:none;">
+					<span class="spinner"></span>
+					生成中...
+				</span>
+			</button>
+		</div>
+
+		<!-- Error -->
+		<div id="error" class="error" style="display:none;"></div>
+
+		<!-- Output -->
+		<div id="outputSection" class="output-section" style="display:none;">
+			<div class="prompt-block">
+				<div class="prompt-label">
+					<span class="dot dot-green"></span>
+					正向提示词
+					<button id="copyPositive" class="btn-copy" title="复制">
+						<i class="fa-regular fa-copy"></i>
+					</button>
+				</div>
+				<div id="positiveOutput" class="prompt-content"></div>
+			</div>
+			<div class="prompt-block">
+				<div class="prompt-label">
+					<span class="dot dot-red"></span>
+					负向提示词
+					<button id="copyNegative" class="btn-copy" title="复制">
+						<i class="fa-regular fa-copy"></i>
+					</button>
+				</div>
+				<div id="negativeOutput" class="prompt-content"></div>
+			</div>
+		</div>
+
+		<!-- History -->
+		<div id="historySection" class="history-section" style="display:none;">
+			<div class="history-header">
+				<h3><i class="fa-solid fa-clock-rotate-left"></i> 历史记录 <span class="history-count"></span></h3>
+				<button id="clearHistory" class="btn-clear" title="清空历史">
+					<i class="fa-solid fa-trash-can"></i> 清空
+				</button>
+			</div>
+			<div id="historyList" class="history-list"></div>
+		</div>
+	</div>
+</Layout>
+
+<style is:global>
+	.container {
+		max-width: 640px;
+		margin: 0 auto;
+		padding: 3rem 1.5rem 4rem;
+	}
+
+	/* Header */
+	.header {
+		margin-bottom: 2rem;
+	}
+
+	.header h1 {
+		font-size: 1.5rem;
+		font-weight: 600;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+	}
+
+	.desc {
+		margin-top: 0.5rem;
+		font-size: 0.875rem;
+		color: #a1a1aa;
+		line-height: 1.5;
+	}
+
+	/* Settings */
+	.settings {
+		border: 1px solid hsla(0, 0%, 100%, 0.1);
+		border-radius: 0.625rem;
+		margin-bottom: 1.25rem;
+		overflow: hidden;
+	}
+
+	.settings summary {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		cursor: pointer;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: #a1a1aa;
+		user-select: none;
+		list-style: none;
+	}
+
+	.settings summary i {
+		font-size: 0.8125rem;
+	}
+
+	.settings summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.settings summary:hover {
+		color: #fafafa;
+	}
+
+	.settings-body {
+		padding: 0 1rem 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		border-top: 1px solid hsla(0, 0%, 100%, 0.06);
+	}
+
+	.settings-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.save-status {
+		font-size: 0.75rem;
+		color: #22c55e;
+	}
+
+	/* Card */
+	.card {
+		background: hsla(0, 0%, 100%, 0.03);
+		border: 1px solid hsla(0, 0%, 100%, 0.1);
+		border-radius: 0.625rem;
+		padding: 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	/* Fields */
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.375rem;
+	}
+
+	.field label {
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: #a1a1aa;
+	}
+
+	input,
+	textarea {
+		background: hsla(0, 0%, 100%, 0.05);
+		border: 1px solid hsla(0, 0%, 100%, 0.1);
+		border-radius: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		color: #fafafa;
+		font-size: 0.875rem;
+		font-family: inherit;
+		outline: none;
+		transition: border-color 0.15s;
+	}
+
+	input::placeholder,
+	textarea::placeholder {
+		color: #52525b;
+	}
+
+	input:focus,
+	textarea:focus {
+		border-color: hsla(0, 0%, 100%, 0.2);
+	}
+
+	textarea {
+		resize: vertical;
+		line-height: 1.6;
+	}
+
+	/* Buttons */
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		border: none;
+		border-radius: 0.5rem;
+		padding: 0.5rem 1rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		font-family: inherit;
+		cursor: pointer;
+		transition: background 0.15s, opacity 0.15s;
+	}
+
+	.btn-primary {
+		width: 100%;
+		background: #fafafa;
+		color: #0a0a0a;
+	}
+
+	.btn-primary:hover {
+		opacity: 0.9;
+	}
+
+	.btn-primary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.btn-outline {
+		background: transparent;
+		color: #a1a1aa;
+		border: 1px solid hsla(0, 0%, 100%, 0.15);
+	}
+
+	.btn-outline:hover {
+		background: hsla(0, 0%, 100%, 0.05);
+		color: #fafafa;
+	}
+
+	.btn-text,
+	.btn-loading {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.btn-text i {
+		font-size: 0.8125rem;
+	}
+
+	.spinner {
+		width: 14px;
+		height: 14px;
+		border: 2px solid hsla(0, 0%, 0%, 0.2);
+		border-top-color: #0a0a0a;
+		border-radius: 50%;
+		animation: spin 0.6s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	/* Error */
+	.error {
+		margin-top: 0.75rem;
+		padding: 0.75rem 1rem;
+		background: hsla(0, 72%, 51%, 0.1);
+		border: 1px solid hsla(0, 72%, 51%, 0.2);
+		border-radius: 0.5rem;
+		color: #f87171;
+		font-size: 0.8125rem;
+		line-height: 1.5;
+	}
+
+	/* Output */
+	.output-section {
+		margin-top: 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.prompt-block {
+		border: 1px solid hsla(0, 0%, 100%, 0.1);
+		border-radius: 0.625rem;
+		overflow: hidden;
+	}
+
+	.prompt-label {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.625rem 1rem;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: #a1a1aa;
+		border-bottom: 1px solid hsla(0, 0%, 100%, 0.06);
+	}
+
+	.btn-copy {
+		margin-left: auto;
+		background: none;
+		border: none;
+		color: #52525b;
+		cursor: pointer;
+		padding: 0.25rem;
+		border-radius: 0.25rem;
+		display: flex;
+		align-items: center;
+		transition: color 0.15s;
+	}
+
+	.btn-copy:hover {
+		color: #a1a1aa;
+	}
+
+	.dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.dot-green {
+		background: #22c55e;
+	}
+
+	.dot-red {
+		background: #ef4444;
+	}
+
+	.prompt-content {
+		padding: 1rem;
+		font-size: 0.8125rem;
+		line-height: 1.7;
+		color: #d4d4d8;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	/* History */
+	.history-section {
+		margin-top: 1.5rem;
+	}
+
+	.history-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.75rem;
+	}
+
+	.history-header h3 {
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: #71717a;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.history-header h3 i {
+		font-size: 0.75rem;
+	}
+
+	.history-count {
+		font-size: 0.6875rem;
+		color: #3f3f46;
+		font-weight: 400;
+	}
+
+	.btn-clear {
+		background: none;
+		border: 1px solid hsla(0, 0%, 100%, 0.08);
+		color: #52525b;
+		font-size: 0.6875rem;
+		font-family: inherit;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.3rem 0.625rem;
+		border-radius: 0.375rem;
+		transition: all 0.15s;
+	}
+
+	.btn-clear:hover {
+		color: #f87171;
+		border-color: hsla(0, 72%, 51%, 0.3);
+		background: hsla(0, 72%, 51%, 0.06);
+	}
+
+	.history-list {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		background: hsla(0, 0%, 100%, 0.06);
+		border: 1px solid hsla(0, 0%, 100%, 0.06);
+		border-radius: 0.625rem;
+		overflow: hidden;
+	}
+
+	.history-item {
+		background: #0a0a0a;
+		transition: background 0.15s;
+	}
+
+	.history-item-header {
+		display: flex;
+		align-items: center;
+		padding: 0.75rem 1rem;
+		cursor: pointer;
+		gap: 0.75rem;
+		transition: background 0.15s;
+	}
+
+	.history-item-header:hover {
+		background: hsla(0, 0%, 100%, 0.03);
+	}
+
+	.history-index {
+		font-size: 0.6875rem;
+		color: #3f3f46;
+		font-variant-numeric: tabular-nums;
+		width: 1.5rem;
+		text-align: right;
+		flex-shrink: 0;
+	}
+
+	.history-input {
+		flex: 1;
+		font-size: 0.8125rem;
+		color: #d4d4d8;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.history-time {
+		font-size: 0.6875rem;
+		color: #3f3f46;
+		flex-shrink: 0;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.history-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		flex-shrink: 0;
+	}
+
+	.history-btn {
+		background: none;
+		border: none;
+		color: #3f3f46;
+		cursor: pointer;
+		padding: 0.25rem;
+		border-radius: 0.25rem;
+		display: flex;
+		align-items: center;
+		font-size: 0.6875rem;
+		transition: color 0.15s;
+	}
+
+	.history-btn:hover {
+		color: #a1a1aa;
+	}
+
+	.history-btn.btn-delete:hover {
+		color: #f87171;
+	}
+
+	.history-chevron {
+		font-size: 0.625rem;
+		color: #3f3f46;
+		transition: transform 0.2s, color 0.15s;
+		flex-shrink: 0;
+	}
+
+	.history-item-header:hover .history-chevron {
+		color: #52525b;
+	}
+
+	.history-item.expanded .history-chevron {
+		transform: rotate(90deg);
+	}
+
+	.history-detail {
+		max-height: 0;
+		overflow: hidden;
+		transition: max-height 0.25s ease;
+	}
+
+	.history-item.expanded .history-detail {
+		max-height: 800px;
+	}
+
+	.history-detail-inner {
+		padding: 0 1rem 0.875rem 3.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.625rem;
+	}
+
+	.history-prompt-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.history-prompt-label {
+		font-size: 0.6875rem;
+		font-weight: 500;
+		color: #52525b;
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+	}
+
+	.history-prompt-text {
+		font-size: 0.75rem;
+		line-height: 1.65;
+		color: #71717a;
+		white-space: pre-wrap;
+		word-break: break-word;
+		background: hsla(0, 0%, 100%, 0.02);
+		border: 1px solid hsla(0, 0%, 100%, 0.04);
+		border-radius: 0.375rem;
+		padding: 0.5rem 0.625rem;
+	}
+</style>
+
+<script define:vars={{ apiConfig: api, defaultPromptsConfig: defaultPrompts }}>
+	const STORAGE_KEY = 't2i_api_config';
+	const HISTORY_KEY = 't2i_history';
+	const MAX_HISTORY = 50;
+
+	// ---- Config ----
+	function loadConfig() {
+		try {
+			return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+		} catch {
+			return {};
+		}
+	}
+
+	function saveConfig(config) {
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+	}
+
+	function initSettings() {
+		const config = loadConfig();
+		const baseUrlEl = document.getElementById('baseUrl');
+		const apiKeyEl = document.getElementById('apiKey');
+		const modelEl = document.getElementById('model');
+
+		baseUrlEl.value = config.baseUrl || apiConfig.baseUrl;
+		if (config.apiKey) apiKeyEl.value = config.apiKey;
+		modelEl.value = config.model || apiConfig.model;
+
+		document.getElementById('saveSettings').addEventListener('click', () => {
+			saveConfig({
+				baseUrl: baseUrlEl.value.trim().replace(/\/+$/, ''),
+				apiKey: apiKeyEl.value.trim(),
+				model: modelEl.value.trim() || 'gpt-4o-mini',
+			});
+			const s = document.getElementById('saveStatus');
+			s.textContent = '已保存';
+			setTimeout(() => { s.textContent = ''; }, 2000);
+		});
+	}
+
+	// ---- Default Prompts ----
+	const DEFAULTS_KEY = 't2i_defaults';
+	const SYSTEM_DEFAULTS = {
+		positive: defaultPromptsConfig.positive,
+		negative: defaultPromptsConfig.negative,
+	};
+
+	function loadDefaults() {
+		try {
+			const saved = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || 'null');
+			return saved ? { ...SYSTEM_DEFAULTS, ...saved } : { ...SYSTEM_DEFAULTS };
+		} catch {
+			return { ...SYSTEM_DEFAULTS };
+		}
+	}
+
+	function saveDefaults(obj) {
+		localStorage.setItem(DEFAULTS_KEY, JSON.stringify(obj));
+	}
+
+	function initDefaults() {
+		const posEl = document.getElementById('defaultPositive');
+		const negEl = document.getElementById('defaultNegative');
+		const defaults = loadDefaults();
+
+		posEl.value = defaults.positive;
+		negEl.value = defaults.negative;
+
+		// Auto-save on blur
+		posEl.addEventListener('blur', () => {
+			const d = loadDefaults();
+			d.positive = posEl.value;
+			saveDefaults(d);
+			flash('defaultsStatus', '已保存');
+		});
+
+		negEl.addEventListener('blur', () => {
+			const d = loadDefaults();
+			d.negative = negEl.value;
+			saveDefaults(d);
+			flash('defaultsStatus', '已保存');
+		});
+
+		// Reset
+		document.getElementById('resetDefaults').addEventListener('click', () => {
+			posEl.value = SYSTEM_DEFAULTS.positive;
+			negEl.value = SYSTEM_DEFAULTS.negative;
+			saveDefaults({ ...SYSTEM_DEFAULTS });
+			flash('defaultsStatus', '已恢复');
+		});
+	}
+
+	function flash(id, text) {
+		const el = document.getElementById(id);
+		el.textContent = text;
+		setTimeout(() => { el.textContent = ''; }, 2000);
+	}
+
+	// ---- History ----
+	function loadHistory() {
+		try {
+			return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+		} catch {
+			return [];
+		}
+	}
+
+	function saveHistory(list) {
+		localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+	}
+
+	function addHistory(input, positive, negative) {
+		const list = loadHistory();
+		list.unshift({
+			id: Date.now(),
+			input,
+			positive,
+			negative,
+		});
+		if (list.length > MAX_HISTORY) list.length = MAX_HISTORY;
+		saveHistory(list);
+		renderHistory();
+	}
+
+	function deleteHistory(id) {
+		const list = loadHistory().filter(h => h.id !== id);
+		saveHistory(list);
+		renderHistory();
+	}
+
+	function clearAllHistory() {
+		localStorage.removeItem(HISTORY_KEY);
+		renderHistory();
+	}
+
+	function formatTime(ts) {
+		const d = new Date(ts);
+		const pad = n => String(n).padStart(2, '0');
+		return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	}
+
+	function renderHistory() {
+		const section = document.getElementById('historySection');
+		const listEl = document.getElementById('historyList');
+		const list = loadHistory();
+
+		if (list.length === 0) {
+			section.style.display = 'none';
+			return;
+		}
+
+		section.style.display = 'block';
+		listEl.innerHTML = '';
+
+		// Update count
+		const countEl = section.querySelector('.history-count');
+		if (countEl) countEl.textContent = `${list.length} 条`;
+
+		list.forEach((item, idx) => {
+			const el = document.createElement('div');
+			el.className = 'history-item';
+			el.innerHTML = `
+				<div class="history-item-header">
+					<span class="history-index">${list.length - idx}</span>
+					<span class="history-input">${escapeHtml(item.input)}</span>
+					<span class="history-time">${formatTime(item.id)}</span>
+					<div class="history-actions">
+						<button class="history-btn btn-reuse" title="重新使用此描述">
+							<i class="fa-solid fa-arrow-rotate-left"></i>
+						</button>
+						<button class="history-btn btn-delete" title="删除">
+							<i class="fa-solid fa-xmark"></i>
+						</button>
+					</div>
+					<i class="fa-solid fa-chevron-right history-chevron"></i>
+				</div>
+				<div class="history-detail">
+					<div class="history-detail-inner">
+						<div class="history-prompt-group">
+							<div class="history-prompt-label"><span class="dot dot-green"></span> 正向提示词</div>
+							<div class="history-prompt-text">${escapeHtml(item.positive)}</div>
+						</div>
+						<div class="history-prompt-group">
+							<div class="history-prompt-label"><span class="dot dot-red"></span> 负向提示词</div>
+							<div class="history-prompt-text">${escapeHtml(item.negative)}</div>
+						</div>
+					</div>
+				</div>
+			`;
+
+			// Toggle expand
+			el.querySelector('.history-item-header').addEventListener('click', (e) => {
+				if (e.target.closest('.history-btn')) return;
+				el.classList.toggle('expanded');
+			});
+
+			// Reuse
+			el.querySelector('.btn-reuse').addEventListener('click', (e) => {
+				e.stopPropagation();
+				document.getElementById('userInput').value = item.input;
+				document.getElementById('userInput').focus();
+			});
+
+			// Delete
+			el.querySelector('.btn-delete').addEventListener('click', (e) => {
+				e.stopPropagation();
+				deleteHistory(item.id);
+			});
+
+			listEl.appendChild(el);
+		});
+	}
+
+	function escapeHtml(str) {
+		const div = document.createElement('div');
+		div.textContent = str;
+		return div.innerHTML;
+	}
+
+	// ---- LLM ----
+	function buildSystemPrompt() {
+		const defaults = loadDefaults();
+		let hint = '';
+
+		if (defaults.positive) {
+			hint += `\nThe user has provided default positive trigger words that MUST be included (merged naturally, not duplicated): ${defaults.positive}`;
+		}
+		if (defaults.negative) {
+			hint += `\nThe user has provided default negative trigger words that MUST be included (merged naturally, not duplicated): ${defaults.negative}`;
+		}
+
+		return `You are a text-to-image prompt engineer. Convert the user's description into two comma-separated trigger word lists for Stable Diffusion.
+
+POSITIVE: quality boosters (masterpiece, best quality, 8k, highly detailed, sharp focus), artistic style, lighting, composition, colors, subject details.
+NEGATIVE: common defects to avoid (lowres, bad anatomy, bad hands, text, watermark, blurry, deformed, ugly, duplicate, extra digits, fewer digits, cropped, worst quality, low quality, jpeg artifacts).${hint}
+
+Output exactly in this format with no extra text:
+POSITIVE: <tags>
+NEGATIVE: <tags>`;
+	}
+
+	function parseOutput(raw) {
+		const posMatch = raw.match(/POSITIVE:\s*([\s\S]*?)(?=NEGATIVE:|$)/i);
+		const negMatch = raw.match(/NEGATIVE:\s*([\s\S]*)/i);
+
+		if (posMatch && negMatch) {
+			return {
+				positive: posMatch[1].trim(),
+				negative: negMatch[1].trim(),
+			};
+		}
+
+		const lines = raw.split('\n').filter(l => l.trim());
+		if (lines.length >= 2) {
+			return {
+				positive: lines[0].replace(/^positive:?\s*/i, '').trim(),
+				negative: lines.slice(1).join('\n').replace(/^negative:?\s*/i, '').trim(),
+			};
+		}
+
+		return {
+			positive: raw,
+			negative: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, deformed, ugly, duplicate',
+		};
+	}
+
+	function log(type, ...args) {
+		const ts = new Date().toLocaleTimeString();
+		const prefix = `[${ts}] [API]`;
+		if (type === 'info') console.log(`%c${prefix}`, 'color:#60a5fa;font-weight:bold', ...args);
+		else if (type === 'ok') console.log(`%c${prefix}`, 'color:#22c55e;font-weight:bold', ...args);
+		else if (type === 'warn') console.warn(`${prefix}`, ...args);
+		else if (type === 'error') console.error(`${prefix}`, ...args);
+	}
+
+	async function callLLM(userText, config) {
+		const baseUrl = (config.baseUrl || apiConfig.baseUrl).replace(/\/+$/, '');
+		const url = `${baseUrl}/chat/completions`;
+		const model = config.model || apiConfig.model;
+		const payload = {
+			model,
+			messages: [
+				{ role: 'system', content: buildSystemPrompt() },
+				{ role: 'user', content: userText },
+			],
+			temperature: 0.7,
+			max_tokens: 1200,
+		};
+
+		log('info', '请求发起 →', url);
+		log('info', '模型:', model, '| 用户输入:', userText);
+		log('info', '请求体:', payload);
+
+		const t0 = performance.now();
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${config.apiKey}`,
+			},
+			body: JSON.stringify(payload),
+		});
+
+		const elapsed = (performance.now() - t0).toFixed(0);
+		log('info', `响应状态: ${response.status} ${response.statusText} | 耗时: ${elapsed}ms`);
+
+		if (!response.ok) {
+			const err = await response.text();
+			log('error', '请求失败:', err);
+			throw new Error(`API 请求失败 (${response.status}): ${err}`);
+		}
+
+		const data = await response.json();
+		log('ok', '响应体:', data);
+
+		if (data.usage) {
+			log('info', 'Token 用量 —', `prompt: ${data.usage.prompt_tokens}, completion: ${data.usage.completion_tokens}, total: ${data.usage.total_tokens}`);
+		}
+
+		const raw = data.choices?.[0]?.message?.content?.trim() || '';
+		const result = parseOutput(raw);
+		log('ok', '解析结果:', result);
+		return result;
+	}
+
+	// ---- App ----
+	function initApp() {
+		initSettings();
+		initDefaults();
+		renderHistory();
+
+		const generateBtn = document.getElementById('generate');
+		const btnText = generateBtn.querySelector('.btn-text');
+		const btnLoading = generateBtn.querySelector('.btn-loading');
+		const userInput = document.getElementById('userInput');
+		const outputSection = document.getElementById('outputSection');
+		const positiveOutput = document.getElementById('positiveOutput');
+		const negativeOutput = document.getElementById('negativeOutput');
+		const errorEl = document.getElementById('error');
+
+		function setLoading(on) {
+			generateBtn.disabled = on;
+			btnText.style.display = on ? 'none' : '';
+			btnLoading.style.display = on ? 'inline-flex' : 'none';
+		}
+
+		generateBtn.addEventListener('click', async () => {
+			const text = userInput.value.trim();
+			if (!text) {
+				errorEl.textContent = '请输入你想要的画面描述。';
+				errorEl.style.display = 'block';
+				return;
+			}
+
+			const config = loadConfig();
+			if (!config.apiKey) {
+				errorEl.textContent = '请先在 API 设置中填写 API Key。';
+				errorEl.style.display = 'block';
+				return;
+			}
+
+			errorEl.style.display = 'none';
+			outputSection.style.display = 'none';
+			setLoading(true);
+
+			try {
+				const result = await callLLM(text, config);
+				positiveOutput.textContent = result.positive;
+				negativeOutput.textContent = result.negative;
+				outputSection.style.display = 'flex';
+				addHistory(text, result.positive, result.negative);
+			} catch (err) {
+				log('error', '生成失败:', err.message);
+				errorEl.textContent = err.message;
+				errorEl.style.display = 'block';
+			} finally {
+				setLoading(false);
+			}
+		});
+
+		// Copy buttons
+		document.getElementById('copyPositive').addEventListener('click', function () {
+			copyToClipboard(this, positiveOutput);
+		});
+		document.getElementById('copyNegative').addEventListener('click', function () {
+			copyToClipboard(this, negativeOutput);
+		});
+
+		function copyToClipboard(btn, target) {
+			navigator.clipboard.writeText(target.textContent).then(() => {
+				const orig = btn.innerHTML;
+				btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+				setTimeout(() => { btn.innerHTML = orig; }, 1500);
+			});
+		}
+
+		// Clear history
+		document.getElementById('clearHistory').addEventListener('click', () => {
+			clearAllHistory();
+		});
+
+		// Ctrl+Enter
+		userInput.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+				generateBtn.click();
+			}
+		});
+	}
+
+	initApp();
+</script>
