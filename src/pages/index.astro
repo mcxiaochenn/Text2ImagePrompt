@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { site, api, defaultPrompts } from '../config';
+import randomPrompts from '../data/random-prompts.json';
 ---
 
 <Layout>
@@ -69,13 +70,18 @@ import { site, api, defaultPrompts } from '../config';
 					spellcheck="false"
 				></textarea>
 			</div>
-			<button id="generate" class="btn btn-primary">
-				<span class="btn-text"><i class="fa-solid fa-wand-magic-sparkles"></i> 生成提示词</span>
-				<span class="btn-loading" style="display:none;">
-					<span class="spinner"></span>
-					生成中...
-				</span>
-			</button>
+			<div class="generate-actions">
+				<button id="generate" class="btn btn-primary">
+					<span class="btn-text"><i class="fa-solid fa-wand-magic-sparkles"></i> 生成提示词</span>
+					<span class="btn-loading" style="display:none;">
+						<span class="spinner"></span>
+						生成中...
+					</span>
+				</button>
+				<button id="randomPrompt" class="btn btn-ghost" title="随机灵感">
+					<i class="fa-solid fa-shuffle"></i>
+				</button>
+			</div>
 		</div>
 
 		<!-- Error -->
@@ -248,6 +254,16 @@ import { site, api, defaultPrompts } from '../config';
 		line-height: 1.6;
 	}
 
+	/* Generate actions row */
+	.generate-actions {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.generate-actions .btn-primary {
+		flex: 1;
+	}
+
 	/* Buttons */
 	.btn {
 		display: inline-flex;
@@ -288,6 +304,17 @@ import { site, api, defaultPrompts } from '../config';
 	.btn-outline:hover {
 		background: hsla(0, 0%, 100%, 0.05);
 		color: #fafafa;
+	}
+
+	.btn-ghost {
+		background: transparent;
+		color: #52525b;
+		padding: 0.5rem 0.75rem;
+	}
+
+	.btn-ghost:hover {
+		color: #a1a1aa;
+		background: hsla(0, 0%, 100%, 0.05);
 	}
 
 	.btn-text,
@@ -587,7 +614,7 @@ import { site, api, defaultPrompts } from '../config';
 	}
 </style>
 
-<script define:vars={{ apiConfig: api, defaultPromptsConfig: defaultPrompts }}>
+<script define:vars={{ apiConfig: api, defaultPromptsConfig: defaultPrompts, randomPromptsData: randomPrompts }}>
 	const STORAGE_KEY = 't2i_api_config';
 	const HISTORY_KEY = 't2i_history';
 	const MAX_HISTORY = 50;
@@ -812,20 +839,26 @@ import { site, api, defaultPrompts } from '../config';
 		let hint = '';
 
 		if (defaults.positive) {
-			hint += `\nThe user has provided default positive trigger words that MUST be included (merged naturally, not duplicated): ${defaults.positive}`;
+			hint += `\n- DEFAULT POSITIVE (MUST include all, merged naturally, never duplicated): ${defaults.positive}`;
 		}
 		if (defaults.negative) {
-			hint += `\nThe user has provided default negative trigger words that MUST be included (merged naturally, not duplicated): ${defaults.negative}`;
+			hint += `\n- DEFAULT NEGATIVE (MUST include all, merged naturally, never duplicated): ${defaults.negative}`;
 		}
 
-		return `You are a text-to-image prompt engineer. Convert the user's description into two comma-separated trigger word lists for Stable Diffusion.
+		return `You are a Stable Diffusion prompt engineer. Your ONLY job is to output two comma-separated tag lists. No explanation, no reasoning, no markdown.
 
-POSITIVE: quality boosters (masterpiece, best quality, 8k, highly detailed, sharp focus), artistic style, lighting, composition, colors, subject details.
-NEGATIVE: common defects to avoid (lowres, bad anatomy, bad hands, text, watermark, blurry, deformed, ugly, duplicate, extra digits, fewer digits, cropped, worst quality, low quality, jpeg artifacts).${hint}
+RULES:
+1. Output EXACTLY two lines, nothing else.
+2. Line 1 starts with "POSITIVE: " followed by comma-separated tags.
+3. Line 2 starts with "NEGATIVE: " followed by comma-separated tags.
+4. POSITIVE tags: quality boosters, artistic style, lighting, composition, colors, subject details from user description.
+5. NEGATIVE tags: common defects to avoid (lowres, bad anatomy, bad hands, text, watermark, blurry, deformed, ugly, duplicate, extra digits, fewer digits, cropped, worst quality, low quality, jpeg artifacts).${hint}
 
-Output exactly in this format with no extra text:
-POSITIVE: <tags>
-NEGATIVE: <tags>`;
+CORRECT OUTPUT EXAMPLE:
+POSITIVE: masterpiece, best quality, 8k, highly detailed, sharp focus, 1girl, black dress, rain, city, neon lights, cinematic lighting
+NEGATIVE: lowres, bad anatomy, bad hands, text, watermark, blurry, deformed, ugly, duplicate, worst quality, low quality, jpeg artifacts
+
+START YOUR RESPONSE WITH "POSITIVE:" IMMEDIATELY.`;
 	}
 
 	function parseOutput(raw) {
@@ -847,9 +880,10 @@ NEGATIVE: <tags>`;
 			};
 		}
 
+		// Single line or unstructured — try best effort
 		return {
 			positive: raw,
-			negative: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, deformed, ugly, duplicate',
+			negative: '',
 		};
 	}
 
@@ -873,7 +907,7 @@ NEGATIVE: <tags>`;
 				{ role: 'user', content: userText },
 			],
 			temperature: 0.7,
-			max_tokens: 1200,
+			max_tokens: 4000,
 		};
 
 		log('info', '请求发起 →', url);
@@ -906,7 +940,21 @@ NEGATIVE: <tags>`;
 			log('info', 'Token 用量 —', `prompt: ${data.usage.prompt_tokens}, completion: ${data.usage.completion_tokens}, total: ${data.usage.total_tokens}`);
 		}
 
+		const finishReason = data.choices?.[0]?.finish_reason;
+		if (finishReason) log('info', '完成原因:', finishReason);
+
+		const reasoningContent = data.choices?.[0]?.message?.reasoning_content;
+		if (reasoningContent) log('info', '推理内容长度:', reasoningContent.length, '字符');
+
 		const raw = data.choices?.[0]?.message?.content?.trim() || '';
+
+		if (!raw) {
+			if (finishReason === 'length') {
+				throw new Error('模型输出被截断（推理 token 耗尽），请尝试增加 max_tokens 或换用非推理模型。');
+			}
+			throw new Error('模型返回内容为空，请检查 API 配置或稍后重试。');
+		}
+
 		const result = parseOutput(raw);
 		log('ok', '解析结果:', result);
 		return result;
@@ -933,10 +981,21 @@ NEGATIVE: <tags>`;
 			btnLoading.style.display = on ? 'inline-flex' : 'none';
 		}
 
+		// ---- Random Prompt ----
+		document.getElementById('randomPrompt').addEventListener('click', () => {
+			const pick = randomPromptsData[Math.floor(Math.random() * randomPromptsData.length)];
+			userInput.value = pick;
+			userInput.focus();
+		});
+
 		generateBtn.addEventListener('click', async () => {
 			const text = userInput.value.trim();
 			if (!text) {
-				errorEl.textContent = '请输入你想要的画面描述。';
+				if (Math.random() < 0.5) {
+					errorEl.innerHTML = '请输入你想要的画面描述。<br><span style="color:#a1a1aa;font-size:0.75rem;">Tips：不知道填啥？试试看 <i class="fa-solid fa-shuffle"></i> 随机灵感！</span>';
+				} else {
+					errorEl.textContent = '请输入你想要的画面描述。';
+				}
 				errorEl.style.display = 'block';
 				return;
 			}
