@@ -44,6 +44,11 @@ import randomPrompts from '../data/random-prompts.json';
 				默认提示词
 			</summary>
 			<div class="settings-body">
+				<label class="toggle-row">
+					<input type="checkbox" id="nsfwToggle" />
+					<span class="toggle-label">NSFW 模式</span>
+					<span class="toggle-hint">正向增加 nsfw, nude, explicit；负向增加 sfw, safe, censored</span>
+				</label>
 				<div class="field">
 					<label for="defaultPositive">默认正向提示词（生成时自动合并）</label>
 					<textarea id="defaultPositive" rows="3" spellcheck="false" placeholder="可留空"></textarea>
@@ -189,6 +194,33 @@ import randomPrompts from '../data/random-prompts.json';
 		flex-direction: column;
 		gap: 0.75rem;
 		border-top: 1px solid hsla(0, 0%, 100%, 0.06);
+	}
+
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+		padding: 0.5rem 0;
+	}
+
+	.toggle-row input[type="checkbox"] {
+		accent-color: #a1a1aa;
+		width: 15px;
+		height: 15px;
+		cursor: pointer;
+	}
+
+	.toggle-label {
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: #d4d4d8;
+	}
+
+	.toggle-hint {
+		font-size: 0.6875rem;
+		color: #52525b;
+		margin-left: 0.25rem;
 	}
 
 	.settings-actions {
@@ -659,6 +691,7 @@ import randomPrompts from '../data/random-prompts.json';
 	const SYSTEM_DEFAULTS = {
 		positive: defaultPromptsConfig.positive,
 		negative: defaultPromptsConfig.negative,
+		nsfw: false,
 	};
 
 	function loadDefaults() {
@@ -677,10 +710,12 @@ import randomPrompts from '../data/random-prompts.json';
 	function initDefaults() {
 		const posEl = document.getElementById('defaultPositive');
 		const negEl = document.getElementById('defaultNegative');
+		const nsfwEl = document.getElementById('nsfwToggle');
 		const defaults = loadDefaults();
 
 		posEl.value = defaults.positive;
 		negEl.value = defaults.negative;
+		nsfwEl.checked = !!defaults.nsfw;
 
 		// Auto-save on blur
 		posEl.addEventListener('blur', () => {
@@ -697,10 +732,19 @@ import randomPrompts from '../data/random-prompts.json';
 			flash('defaultsStatus', '已保存');
 		});
 
+		// NSFW toggle
+		nsfwEl.addEventListener('change', () => {
+			const d = loadDefaults();
+			d.nsfw = nsfwEl.checked;
+			saveDefaults(d);
+			flash('defaultsStatus', nsfwEl.checked ? 'NSFW 已开启' : 'NSFW 已关闭');
+		});
+
 		// Reset
 		document.getElementById('resetDefaults').addEventListener('click', () => {
 			posEl.value = SYSTEM_DEFAULTS.positive;
 			negEl.value = SYSTEM_DEFAULTS.negative;
+			nsfwEl.checked = false;
 			saveDefaults({ ...SYSTEM_DEFAULTS });
 			flash('defaultsStatus', '已恢复');
 		});
@@ -838,11 +882,17 @@ import randomPrompts from '../data/random-prompts.json';
 		const defaults = loadDefaults();
 		let hint = '';
 
-		if (defaults.positive) {
-			hint += `\n- DEFAULT POSITIVE (MUST include all, merged naturally, never duplicated): ${defaults.positive}`;
+		const nsfwPositive = defaults.nsfw ? 'nsfw, nude, explicit, 18+' : '';
+		const nsfwNegative = defaults.nsfw ? 'sfw, safe, censored, mosaic' : '';
+
+		const effectivePositive = [defaults.positive, nsfwPositive].filter(Boolean).join(', ');
+		const effectiveNegative = [defaults.negative, nsfwNegative].filter(Boolean).join(', ');
+
+		if (effectivePositive) {
+			hint += `\n- DEFAULT POSITIVE (MUST include all, merged naturally, never duplicated): ${effectivePositive}`;
 		}
-		if (defaults.negative) {
-			hint += `\n- DEFAULT NEGATIVE (MUST include all, merged naturally, never duplicated): ${defaults.negative}`;
+		if (effectiveNegative) {
+			hint += `\n- DEFAULT NEGATIVE (MUST include all, merged naturally, never duplicated): ${effectiveNegative}`;
 		}
 
 		return `You are a Stable Diffusion prompt engineer. Your ONLY job is to output two comma-separated tag lists. No explanation, no reasoning, no markdown.
