@@ -17,7 +17,7 @@ export const api = {
 
 export const defaultPrompts = {
 	positive: 'masterpiece, best quality, newest, absurdres, highres',
-	negative: 'text, watermark, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, furry, ambiguous form, feral, semi-anthro, vibrant colors, oversaturated, high saturation, neon colors, vivid',
+	negative: 'text, watermark, worst quality, low quality, lowres, signature, username, logo, bad hands, mutated hands, furry, anthro, feral, oversaturated, neon colors, vivid',
 };
 
 export const icp = {
